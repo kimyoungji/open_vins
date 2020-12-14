@@ -148,14 +148,17 @@ void TrackKLT::feed_stereo(double timestamp, cv::Mat &img_leftin, cv::Mat &img_r
 
     // Extract image pyramids (boost seems to require us to put all the arguments even if there are defaults....)
     std::vector<cv::Mat> imgpyr_left, imgpyr_right;
-    boost::thread t_lp = boost::thread(cv::buildOpticalFlowPyramid, boost::cref(img_left),
-                                       boost::ref(imgpyr_left), boost::ref(win_size), boost::ref(pyr_levels), false,
-                                       cv::BORDER_REFLECT_101, cv::BORDER_CONSTANT, true);
-    boost::thread t_rp = boost::thread(cv::buildOpticalFlowPyramid, boost::cref(img_right),
-                                       boost::ref(imgpyr_right), boost::ref(win_size), boost::ref(pyr_levels),
-                                       false, cv::BORDER_REFLECT_101, cv::BORDER_CONSTANT, true);
-    t_lp.join();
-    t_rp.join();
+    
+    cv::buildOpticalFlowPyramid(img_left, imgpyr_left, win_size, pyr_levels);
+    cv::buildOpticalFlowPyramid(img_right, imgpyr_right, win_size, pyr_levels);
+//    boost::thread t_lp = boost::thread(cv::buildOpticalFlowPyramid, boost::cref(img_left),
+//                                       boost::ref(imgpyr_left), boost::ref(win_size), boost::ref(pyr_levels), false,
+//                                       cv::BORDER_REFLECT_101, cv::BORDER_CONSTANT, true);
+//    boost::thread t_rp = boost::thread(cv::buildOpticalFlowPyramid, boost::cref(img_right),
+//                                       boost::ref(imgpyr_right), boost::ref(win_size), boost::ref(pyr_levels),
+//                                       false, cv::BORDER_REFLECT_101, cv::BORDER_CONSTANT, true);
+//    t_lp.join();
+//    t_rp.join();
     rT2 =  boost::posix_time::microsec_clock::local_time();
 
     // If we didn't have any successful tracks last time, just extract this time
@@ -399,32 +402,44 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
         cv::KeyPoint kpt = *it0;
         // Check if this keypoint is near another point
         if(grid_2d_0((int)(kpt.pt.y/min_px_dist),(int)(kpt.pt.x/min_px_dist)) == 1) {
+//            std::swap(*it0, pts0.back());
+//            pts0.pop_back();
+//            std::swap(*it1, ids0.back());
+//            ids0.pop_back();
             it0 = pts0.erase(it0);
             it1 = ids0.erase(it1);
-            continue;
+        }else{
+            // Else we are good, move forward to the next point
+            grid_2d_0((int)(kpt.pt.y/min_px_dist),(int)(kpt.pt.x/min_px_dist)) = 1;
+            it0++;
+            it1++;
         }
-        // Else we are good, move forward to the next point
-        grid_2d_0((int)(kpt.pt.y/min_px_dist),(int)(kpt.pt.x/min_px_dist)) = 1;
-        it0++;
-        it1++;
     }
-    it0 = pts1.begin();
-    it1 = ids1.begin();
-    while(it0 != pts1.end()) {
+    pts0.shrink_to_fit();
+    ids0.shrink_to_fit();
+    auto it0_2 = pts1.begin();
+    auto it1_2 = ids1.begin();
+    while(it0_2 != pts1.end()) {
         // Get current right keypoint
-        cv::KeyPoint kpt = *it0;
+        cv::KeyPoint kpt = *it0_2;
         // Check if this keypoint is near another point
         if(grid_2d_1((int)(kpt.pt.y/min_px_dist),(int)(kpt.pt.x/min_px_dist)) == 1) {
-            it0 = pts1.erase(it0);
-            it1 = ids1.erase(it1);
-            continue;
+//            std::swap(*it0_2, pts1.back());
+//            pts1.pop_back();
+//            std::swap(*it1_2, ids1.back());
+//            ids1.pop_back();
+            it0_2 = pts1.erase(it0_2);
+            it1_2 = ids1.erase(it1_2);
+        }else{
+            // Else we are good, move forward to the next point
+            grid_2d_1((int)(kpt.pt.y/min_px_dist),(int)(kpt.pt.x/min_px_dist)) = 1;
+            it0_2++;
+            it1_2++;
         }
-        // Else we are good, move forward to the next point
-        grid_2d_1((int)(kpt.pt.y/min_px_dist),(int)(kpt.pt.x/min_px_dist)) = 1;
-        it0++;
-        it1++;
     }
-
+    pts1.shrink_to_fit();
+    ids1.shrink_to_fit();
+    std::cout<<"pts0 size: "<< pts0.size()<<std::endl;
     // First compute how many more features we need to extract from this image
     int num_featsneeded_0 = num_features - (int)pts0.size();
 
@@ -454,8 +469,10 @@ void TrackKLT::perform_detection_stereo(const std::vector<cv::Mat> &img0pyr, con
         // TODO: This will not work for large baseline systems.....
         std::vector<cv::KeyPoint> kpts1_new;
         std::vector<cv::Point2f> pts1_new;
-        kpts1_new = kpts0_new;
-        pts1_new = pts0_new;
+//        kpts1_new = kpts0_new;
+//        pts1_new = pts0_new;
+        kpts1_new.assign(kpts0_new.begin(), kpts0_new.end());
+        pts1_new.assign(pts0_new.begin(), pts0_new.end());
 
         // If we have points, do KLT tracking to get the valid projections
         if(!pts0_new.empty()) {
